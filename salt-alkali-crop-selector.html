@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>盐碱地作物品种智能选配与风险推演系统</title>
+<style>
+/* ==== tokens ==== */
+:root{
+  --paper:#F1F4EA; --card:#FBFCF7; --frost:#E5EADC; --band:#DDE9D2;
+  --line:#BCCAA7; --ink:#22382A; --ink-2:#4A5A4A; --ink-3:#5A6A57;
+  --moss:#6E9160; --moss-d:#41603C; --clay:#9C7A3C;
+  --sans:"Noto Sans SC","Noto Sans CJK SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","WenQuanYi Micro Hei",sans-serif;
+  --serif:"Noto Serif SC","Noto Serif CJK SC","Source Han Serif SC","Songti SC","SimSun",serif;
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+.wrap{width:min(1040px,100% - 40px);margin-inline:auto;padding-block:34px 60px}
+
+/* ==== shell ==== */
+.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+  border-bottom:2px solid var(--ink);padding-bottom:14px}
+.eyebrow{font:500 12px/1 var(--sans);letter-spacing:.22em;color:var(--moss-d);text-transform:none}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(23px,3.4vw,36px);line-height:1.25;margin:.45em 0 0}
+.masthead .seal{font:500 12px/1.4 var(--mono);color:var(--ink-2);text-align:right;white-space:nowrap}
+.masthead .seal b{display:block;font:700 21px/1 var(--mono);color:var(--moss-d)}
+
+.notice{margin-top:18px;display:flex;gap:12px;align-items:flex-start;
+  background:var(--frost);border-left:3px solid var(--clay);padding:12px 16px;border-radius:0 6px 6px 0}
+.notice svg{flex:none;margin-top:3px}
+.notice p{margin:0;font-size:13.5px;color:#4b4536}
+.notice strong{color:#6B4E1C;font-weight:600}
+
+/* ==== form ==== */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:26px;
+  padding:26px 28px 30px;box-shadow:0 1px 0 rgba(34,56,42,.04)}
+.panel-title{font:600 13px/1 var(--sans);letter-spacing:.14em;color:var(--ink-3);margin:0 0 20px}
+.fields{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.field label{display:block;font-size:14px;font-weight:600;margin-bottom:7px}
+.field .unit{font-weight:400;color:var(--ink-3);font-size:12.5px;margin-left:5px}
+.field input{width:100%;font:15px/1 var(--mono);color:var(--ink);background:#fff;
+  border:1px solid var(--line);border-radius:6px;padding:12px 13px;transition:border-color .18s,box-shadow .18s}
+.field input::placeholder{font-family:var(--sans);color:#aab3a6}
+.field input:hover{border-color:var(--moss)}
+.field input:focus-visible{outline:none;border-color:var(--moss-d);box-shadow:0 0 0 3px rgba(110,145,96,.22)}
+.field p{margin:7px 0 0;font-size:13px;color:var(--ink-3)}
+.err{color:#9c3c2c !important}
+
+.actions{display:flex;align-items:center;gap:16px;margin-top:26px;flex-wrap:wrap}
+button.submit{appearance:none;cursor:pointer;font:600 15px/1 var(--sans);color:#fff;background:var(--moss-d);
+  border:1px solid var(--moss-d);border-radius:7px;padding:13px 30px;transition:transform .16s,background .16s}
+button.submit:hover{background:#31482E;transform:translateY(-1px)}
+button.submit:active{transform:translateY(0)}
+button.submit:focus-visible{outline:3px solid rgba(110,145,96,.45);outline-offset:2px}
+#status{font-size:13.5px;color:var(--ink-2);margin:0}
+#status.ok{color:var(--moss-d)}
+
+/* ==== signature: 分级标尺 ==== */
+.rulers{margin-top:30px;padding-top:24px;border-top:1px dashed var(--line)}
+.rulers>h2{font:600 12px/1 var(--sans);letter-spacing:.14em;color:var(--ink-3);margin:0 0 4px}
+.rulers>p{margin:0 0 20px;font-size:13px;color:var(--ink-3)}
+.ruler{margin-bottom:22px}
+.ruler .rl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.ruler .rl span:first-child{font-size:13.5px;font-weight:600}
+.ruler .val{font:600 14px/1 var(--mono);color:var(--moss-d)}
+.track{position:relative;height:34px;border-radius:5px;overflow:hidden;background:#fff;border:1px solid var(--line)}
+.zone{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:#4C5A47;white-space:nowrap}
+.zone.salt-a{background:var(--band)}
+.zone.salt-b{background:#CFE0BE}
+.zone.salt-c{background:#B6CEA4}
+.zone.over{background:repeating-linear-gradient(135deg,#e6e9de 0 6px,#f4f6ef 6px 12px);color:#697064}
+.zone.ph-a{background:var(--band)}
+.zone.ph-b{background:repeating-linear-gradient(135deg,#e8d8bd 0 6px,#f5ecdb 6px 12px);color:#64491B}
+.pin{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);left:0;
+  transition:left .5s cubic-bezier(.2,.7,.2,1);opacity:.85}
+.pin.idle{opacity:0}
+.pin::after{content:"";position:absolute;top:-1px;left:-5px;border:6px solid transparent;border-top-color:var(--ink)}
+.ticks{display:flex;justify-content:space-between;font:11.5px/1 var(--mono);color:var(--ink-3);margin-top:6px}
+.offscale{margin-top:6px;font-size:13px;color:#9c3c2c}
+
+/* ==== result ==== */
+.result{margin-top:26px}
+.result .head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:9px}
+.result h2{font-family:var(--serif);font-size:19px;font-weight:700;margin:0}
+.result .hint{font-size:13px;color:var(--ink-3)}
+textarea{width:100%;min-height:340px;resize:vertical;font:14.5px/1.85 var(--sans);color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;
+  transition:border-color .18s,box-shadow .18s}
+textarea::placeholder{color:#8A948A}
+textarea:focus-visible{outline:none;border-color:var(--moss-d);box-shadow:0 0 0 3px rgba(110,145,96,.2)}
+
+footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-3)}
+
+@media (max-width:820px){
+  .fields{grid-template-columns:1fr}
+  .masthead{flex-direction:column;align-items:flex-start}
+  .masthead .seal{text-align:left}
+  .wrap{width:min(1040px,100% - 28px);padding-top:24px}
+  .panel{padding:22px 20px 24px}
+}
+@media (prefers-reduced-motion:reduce){
+  .pin,button.submit,textarea,input{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">滨海盐碱地 · 以种适地</div>
+      <h1>盐碱地作物品种智能选配与风险推演系统</h1>
+    </div>
+    <div class="seal"><b>3</b>项输入参数<br>1处结果录入</div>
+  </header>
+
+  <p class="notice">
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="#9C7A3C" stroke-width="1.6"/><path d="M8 4.4v4.6M8 11.2v.9" stroke="#9C7A3C" stroke-width="1.7" stroke-linecap="round"/></svg>
+    <span>本页面仅作为<strong>展示外壳</strong>，不能自动对接后台，结果手动填入。“提交录入条件”只做参数校验与分级标尺定位，不会生成任何品种推荐。</span>
+  </p>
+
+  <section class="panel">
+    <h2 class="panel-title">地块采样条件</h2>
+    <form id="form" novalidate>
+      <div class="fields">
+        <div class="field">
+          <label for="ph">土壤 pH 值<span class="unit">0–14</span></label>
+          <input id="ph" name="ph" inputmode="decimal" placeholder="例如 8.6" autocomplete="off">
+          <p id="ph-msg">与含盐量同一采样深度，取耕层 0–20 cm。</p>
+        </div>
+        <div class="field">
+          <label for="salt">土壤含盐量<span class="unit">%</span></label>
+          <input id="salt" name="salt" inputmode="decimal" placeholder="例如 0.35" autocomplete="off">
+          <p id="salt-msg">可溶性盐质量占干土质量的百分比（DB13/T 6260 口径）。</p>
+        </div>
+        <div class="field">
+          <label for="site">地点</label>
+          <input id="site" name="site" placeholder="例如 黄骅滨海" autocomplete="off">
+          <p id="site-msg">到县一级即可，用于匹配区域资料。</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="submit" type="submit">提交录入条件</button>
+        <p id="status" role="status" aria-live="polite">等待录入。</p>
+      </div>
+
+      <div class="rulers">
+        <h2>分级标尺</h2>
+        <p>随输入即时定位。档位区间取自《滨海中重度盐碱地改良适种技术规程》DB13/T 6260—2026 表1 与环渤海棉田分级描述，仅供演示参照，不构成结论。</p>
+
+        <div class="ruler">
+          <div class="rl"><span>土壤含盐量</span><span class="val" id="salt-val">—</span></div>
+          <div class="track">
+            <div class="zone salt-a" style="left:10%;width:10%">轻度</div>
+            <div class="zone salt-b" style="left:20%;width:20%">中度</div>
+            <div class="zone salt-c" style="left:40%;width:20%">重度</div>
+            <div class="zone over" style="left:60%;width:40%">超出规程分区</div>
+            <div class="pin" id="salt-pin"></div>
+          </div>
+          <div class="ticks"><span>0</span><span>0.20%</span><span>0.40%</span><span>0.60%</span><span>1.00%</span></div>
+          <p class="offscale" id="salt-off" hidden>含盐量超出标尺上限 1.00%，已定位在末端。</p>
+        </div>
+
+        <div class="ruler">
+          <div class="rl"><span>土壤 pH</span><span class="val" id="ph-val">—</span></div>
+          <div class="track">
+            <div class="zone ph-a" style="left:0;width:60%">pH &lt; 8.0　轻、中度常见</div>
+            <div class="zone ph-b" style="left:60%;width:40%">pH ≥ 8.0　碱化提示</div>
+            <div class="pin" id="ph-pin"></div>
+          </div>
+          <div class="ticks"><span>6.5</span><span>7.5</span><span>8.0</span><span>9.0</span><span>9.5</span></div>
+          <p class="offscale" id="ph-off" hidden>pH 超出标尺范围 6.5–9.5。</p>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <section class="result">
+    <div class="head">
+      <h2>推演结果</h2>
+      <span class="hint">可直接编辑或粘贴智能体输出；提交不会清空这里。</span>
+    </div>
+    <textarea id="output" spellcheck="false" placeholder="在此手动填入结果：地块诊断／推荐方案／配套措施／投入与收益提示／数据缺口与待核实清单／依据资料"></textarea>
+  </section>
+
+  <footer>
+    <span>展示外壳 · 无后台连接 · 正式种植前请以当地县级农技推广部门试验示范结果为准</span>
+    <span id="stamp"></span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var f=document.getElementById('form'),
+      ph=document.getElementById('ph'), salt=document.getElementById('salt'), site=document.getElementById('site'),
+      status=document.getElementById('status'),
+      msg={ph:document.getElementById('ph-msg'),salt:document.getElementById('salt-msg'),site:document.getElementById('site-msg')},
+      base={ph:msg.ph.textContent,salt:msg.salt.textContent,site:msg.site.textContent};
+
+  document.getElementById('stamp').textContent=new Date().toLocaleDateString('zh-CN')+' 版';
+  document.getElementById('salt-pin').classList.add('idle');
+  document.getElementById('ph-pin').classList.add('idle');
+
+  function place(pin,offEl,val,min,max){
+    if(isNaN(val)){pin.classList.add('idle');offEl.hidden=true;return}
+    pin.classList.remove('idle');
+    var p=(Math.min(max,Math.max(min,val))-min)/(max-min)*100;
+    pin.style.left=p.toFixed(2)+'%';
+    offEl.hidden=(val>=min&&val<=max);
+  }
+  function bad(input,node,text){node.textContent=text;node.classList.add('err');input.setAttribute('aria-invalid','true')}
+  function good(input,node,key){node.textContent=base[key];node.classList.remove('err');input.removeAttribute('aria-invalid')}
+
+  [['ph',ph],['salt',salt],['site',site]].forEach(function(p){
+    p[1].addEventListener('input',function(){good(p[1],msg[p[0]],p[0])});
+  });
+
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    var ok=true, pHv=parseFloat(ph.value), sv=parseFloat(salt.value);
+
+    if(ph.value===''||isNaN(pHv)){bad(ph,msg.ph,'填入 0–14 之间的数值，例如 8.6。');ok=false}
+    else if(pHv<0||pHv>14){bad(ph,msg.ph,'pH 超出可测范围，确认没有填成电导率。');ok=false}
+    else good(ph,msg.ph,'ph');
+
+    if(salt.value===''||isNaN(sv)){bad(salt,msg.salt,'填入百分数本身，例如 0.35 表示 0.35%。');ok=false}
+    else if(sv<0||sv>3){bad(salt,msg.salt,'含盐量应在 0–3% 之间，若填的是 g·kg⁻¹ 请除以 100。');ok=false}
+    else good(salt,msg.salt,'salt');
+
+    if(!site.value.trim()){bad(site,msg.site,'填写地点，到县一级即可。');ok=false}
+    else good(site,msg.site,'site');
+
+    place(document.getElementById('ph-pin'),document.getElementById('ph-off'),pHv,6.5,9.5);
+    place(document.getElementById('salt-pin'),document.getElementById('salt-off'),sv,0,1);
+    document.getElementById('ph-val').textContent=isNaN(pHv)?'—':pHv.toFixed(1);
+    document.getElementById('salt-val').textContent=isNaN(sv)?'—':sv.toFixed(2)+'%';
+
+    status.className=ok?'ok':'';
+    status.textContent=ok
+      ? '条件已录入：pH '+pHv.toFixed(1)+' · 含盐量 '+sv.toFixed(2)+'% · '+site.value.trim()+'。请在下方手动填入推演结果。'
+      : '有输入未通过校验，按字段下方提示改正。';
+    if(!ok){
+      var first=f.querySelector('[aria-invalid="true"]');
+      if(first)first.focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>
